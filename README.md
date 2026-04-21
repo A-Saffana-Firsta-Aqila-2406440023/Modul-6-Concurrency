@@ -128,3 +128,8 @@ A thread pool is a group of pre-spawned threads that sit idle, waiting for work 
 Without a thread pool, we have two bad options: handle one request at a time (the server freezes on every slow request), or spawn a brand new thread per request (a 10,000 requests would spawn 10,000 threads, crashing the server). A thread pool gives us the best of both concurrency and a hard cap on resource usage. So the server stays responsive without running out of memory.
 
 When the server starts, it creates a fixed number of Worker threads. In our case, 4. Each worker sits in a loop waiting for a job to arrive through a shared channel. When a new request comes in, `execute()` wraps the work into a Job and sends it into the channel. Whichever worker is free picks it up and runs it. The `Arc<Mutex<...>>` around the channel receiver ensures only one worker grabs each job at a time, preventing race conditions. Once a worker finishes its job, it goes back to waiting and ready for the next one.
+
+# Bonus
+I added a `build` function to `ThreadPool` as an alternative constructor that returns `Result<ThreadPool, PoolCreationError>` instead of "panicking". The key difference is that new uses `assert!(size > 0)` which crashes the program if zero is passed, while `build` returns an `Err` and lets the caller handle it gracefully. 
+
+As the Rust book notes, `new` is conventionally expected to always succeed, so `build` is the right pattern when invalid input is possible.
