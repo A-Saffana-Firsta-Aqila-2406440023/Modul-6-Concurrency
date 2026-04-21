@@ -99,3 +99,24 @@ The function now reads only the **first line** of the HTTP request using `.next(
 ```
 
 The original `if/else` block duplicated the response-building and sending code in both branches, which is harder to maintain. The refactored version extracts only the parts that differ (the status line and filename) into a single conditional, then runs the shared logic (reading the file, formatting, and writing the response) just once. This follows the DRY (Don't Repeat Yourself) principle and makes future changes easier since there is only one place to update.
+
+# Milestone 4: Simulation Slow Response
+
+```rust
+{
+    ...
+
+    let (status_line, filename) = match &request_line[..] {
+        "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "hello.html"),
+        "GET /sleep HTTP/1.1" => {
+            thread::sleep(Duration::from_secs(10));
+            ("HTTP/1.1 200 OK", "hello.html")
+        }
+        _ => ("HTTP/1.1 404 NOT FOUND", "404.html"),
+    };
+
+    ...
+}
+```
+
+The `/sleep` route calls `thread::sleep(Duration::from_secs(10))`, which blocks the current thread for 10 seconds before sending any response. Because this server is **single-threaded**, it can only handle one connection at a time. So while it's "sleeping", every other incoming request is stuck waiting. This explains why the browser feels frozen. With many users hitting the server at once, this bottleneck would make it essentially unusable, which is the core reason to eventually move toward a multi-threaded design.
