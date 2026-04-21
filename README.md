@@ -39,3 +39,63 @@ fn handle_connection(mut stream: TcpStream) {
 ```
 
 In this updated version of `handle_connection`, the function no longer just reads and prints the request. It now sends a real HTTP response back to the client. It uses `fs::read_to_string` from Rust's standard library to load the contents of `hello.html` from disk into a `String`. The response is then assembled with the `format!` macro, following proper HTTP structure: a status line (`HTTP/1.1 200 OK`), a `Content-Length` header, a blank line separator, and finally the HTML body. Finally, `stream.write_all()` converts the response into bytes and writes them back through the same `TcpStream`, completing the full request-response cycle.
+
+# Milestone 3: Validating Request and Selectively Responding
+![Commit 3 Screen Capture](/assets/images/commit3.png)
+
+```rust
+{
+    ...
+
+    let request_line = buf_reader.lines().next().unwrap().unwrap();
+
+    if request_line == "GET / HTTP/1.1" {
+        let status_line = "HTTP/1.1 200 OK";
+        let contents = fs::read_to_string("hello.html").unwrap();
+        let length = contents.len();
+
+        let response = format!(
+            "{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}"
+        );
+
+        stream.write_all(response.as_bytes()).unwrap();
+    }
+    else {
+        let status_line = "HTTP/1.1 404 NOT FOUND";
+        let contents = fs::read_to_string("404.html").unwrap();
+        let length = contents.len();
+
+        let response = format!(
+            "{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}"
+        );
+
+        stream.write_all(response.as_bytes()).unwrap();
+    }
+}
+```
+
+The function now reads only the **first line** of the HTTP request using `.next()`, which contains the method, path, and protocol (e.g. `GET / HTTP/1.1`). It then checks whether that line matches a request for the root path. If it does, the server responds with `200 OK` and `hello.html`. Otherwise, it returns `404 NOT FOUND` and `404.html`. This is how the server decides which response to send based on what the client actually asked for.
+
+```rust
+{
+    ...
+
+    let (status_line, filename) = if request_line == "GET / HTTP/1.1" {
+        ("HTTP/1.1 200 OK", "hello.html")
+    } else {
+        ("HTTP/1.1 404 NOT FOUND", "404.html")
+    };
+
+    let contents = fs::read_to_string(filename).unwrap();
+    let length = contents.len();
+
+    let response = format!(
+        "{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}"
+    );
+
+    stream.write_all(response.as_bytes()).unwrap();
+}
+
+```
+
+The original `if/else` block duplicated the response-building and sending code in both branches, which is harder to maintain. The refactored version extracts only the parts that differ (the status line and filename) into a single conditional, then runs the shared logic (reading the file, formatting, and writing the response) just once. This follows the DRY (Don't Repeat Yourself) principle and makes future changes easier since there is only one place to update.
