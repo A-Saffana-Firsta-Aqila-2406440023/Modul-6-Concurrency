@@ -120,3 +120,11 @@ The original `if/else` block duplicated the response-building and sending code i
 ```
 
 The `/sleep` route calls `thread::sleep(Duration::from_secs(10))`, which blocks the current thread for 10 seconds before sending any response. Because this server is **single-threaded**, it can only handle one connection at a time. So while it's "sleeping", every other incoming request is stuck waiting. This explains why the browser feels frozen. With many users hitting the server at once, this bottleneck would make it essentially unusable, which is the core reason to eventually move toward a multi-threaded design.
+
+# Milestone 5: Multithreaded Server
+
+A thread pool is a group of pre-spawned threads that sit idle, waiting for work to be assigned to them. Instead of creating a new thread every time a request comes in, the server reuses threads from the pool, keeping the number of active threads fixed and predictable.
+
+Without a thread pool, we have two bad options: handle one request at a time (the server freezes on every slow request), or spawn a brand new thread per request (a 10,000 requests would spawn 10,000 threads, crashing the server). A thread pool gives us the best of both concurrency and a hard cap on resource usage. So the server stays responsive without running out of memory.
+
+When the server starts, it creates a fixed number of Worker threads. In our case, 4. Each worker sits in a loop waiting for a job to arrive through a shared channel. When a new request comes in, `execute()` wraps the work into a Job and sends it into the channel. Whichever worker is free picks it up and runs it. The `Arc<Mutex<...>>` around the channel receiver ensures only one worker grabs each job at a time, preventing race conditions. Once a worker finishes its job, it goes back to waiting and ready for the next one.
